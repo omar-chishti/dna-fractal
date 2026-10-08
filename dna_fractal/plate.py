@@ -184,10 +184,11 @@ def key(
     outline swatch. `lead` is a dim label set before the first row.
     """
     row_height, label_gap, column_gap, group_gap = 24.0, 8.0, 20.0, 44.0
+    baseline = {"va": "baseline"}
     left = 0.0
     if lead:
-        text = caption(ax, x, y, lead, theme, size=NOTE, dim=True,
-                       dy=-SWATCH / 2 - SMALL_CAPS_DROP, va="baseline")  # fmt: skip
+        dy = -SWATCH / 2 - SMALL_CAPS_DROP
+        text = caption(ax, x, y, lead, theme, size=NOTE, dim=True, dy=dy, **baseline)
         left = width(ax, text) + label_gap * 2
     for items in groups:
         columns = math.ceil(len(items) / rows)
@@ -197,10 +198,8 @@ def key(
                 colour, label = items[i]
                 cy = -(i // columns) * row_height - SWATCH / 2
                 swatch(ax, x, y, colour, theme, dx=left + SWATCH / 2, dy=cy)
-                text = caption(
-                    ax, x, y, label, theme,
-                    dx=left + SWATCH + label_gap, dy=cy - SMALL_CAPS_DROP, va="baseline",
-                )  # fmt: skip
+                dx, dy = left + SWATCH + label_gap, cy - SMALL_CAPS_DROP
+                text = caption(ax, x, y, label, theme, dx=dx, dy=dy, **baseline)
                 widest = max(widest, width(ax, text))
             left += SWATCH + label_gap + widest + column_gap
         left += group_gap - column_gap

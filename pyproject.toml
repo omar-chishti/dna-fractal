@@ -6,7 +6,7 @@ readme = "README.md"
 license = "MIT"
 authors = [{ name = "Omar Chishti" }]
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.26", "pandas>=2.1", "matplotlib>=3.8"]
+dependencies = ["numpy>=1.26", "pandas>=2.1", "matplotlib>=3.8", "fonttools>=4.40"]
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6", "jupyterlab>=4", "nbmake>=1.5"]
