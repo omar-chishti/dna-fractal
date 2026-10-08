@@ -1,6 +1,8 @@
 # dna-fractal
 
-![DNA Fractal, chromosome 1](figures/poster.jpg)
+<p align="center">
+  <img src="figures/poster.jpg" width="560" alt="DNA Fractal, chromosome 1">
+</p>
 
 This piece depicts the first chromosome of my genome sequence as a pair of mirrored Sierpiński
 triangles. It is an attempt to paint with thought, to connect the beauty of emergent geometry
