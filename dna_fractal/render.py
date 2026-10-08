@@ -1,6 +1,7 @@
 """Drawing values onto Sierpiński cells with matplotlib."""
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,19 +18,34 @@ POSTER_PALETTE = {
     "I": "violet", "GT": "teal", "C": "silver", "--": "purple", "CG": "lavender",
 }  # fmt: skip
 
-PADDING = "white"
-BACKGROUND = "black"
 
-IBS_PALETTE = {0: "#ff3b30", 1: "#5a5a5a", 2: "#262626"}
-MISSING = "#101010"
+@dataclass(frozen=True)
+class Theme:
+    ground: str
+    ink: str
+    padding_fill: str | None
+    padding_edge: str | None
+    missing: str
 
 
-def colours_for(values: Sequence, palette: dict, n_cells: int, padding: str = PADDING) -> list:
-    """One colour per cell: values in order, then padding for the cells left over."""
+POSTER = Theme(ground="black", ink="white", padding_fill="white", padding_edge=None, missing="#222")
+BLUEPRINT = Theme(
+    ground="#0f2645",
+    ink="#ece6d6",
+    padding_fill=None,
+    padding_edge="#ece6d62e",
+    missing="#0f2645",
+)
+
+IBS_PALETTE = {0: "#ff6a3d", 1: "#8fb0d8", 2: "#3a6597"}
+
+
+def colours_for(values: Sequence, palette: dict, n_cells: int, missing: str) -> list[str | None]:
+    """One colour per cell: values in order, then None for each padding cell."""
     if len(values) > n_cells:
         raise ValueError(f"{len(values)} values do not fit in {n_cells} cells")
-    colours = [palette.get(v, MISSING) for v in values]
-    return colours + [padding] * (n_cells - len(colours))
+    colours: list[str | None] = [palette.get(v, missing) for v in values]
+    return colours + [None] * (n_cells - len(colours))
 
 
 def flip(cells: np.ndarray) -> np.ndarray:
@@ -39,21 +55,32 @@ def flip(cells: np.ndarray) -> np.ndarray:
     return flipped
 
 
-def draw(ax: plt.Axes, cells: np.ndarray, colours: Sequence, offset=(0.0, 0.0)) -> None:
-    """Fill each cell with its colour. Hairline edges in the face colour close the seams."""
+def draw(
+    ax: plt.Axes,
+    cells: np.ndarray,
+    colours: Sequence[str | None],
+    theme: Theme,
+    offset: tuple[float, float] = (0.0, 0.0),
+) -> list[PolyCollection]:
+    """Fill each cell with its colour; draw padding cells (None) in the theme's padding style.
+
+    Hairline edges in the face colour close the seams between filled cells.
+    """
     polys = cells + np.asarray(offset)
-    ax.add_collection(
-        PolyCollection(polys, facecolors=colours, edgecolors=colours, linewidths=0.05)
-    )
-
-
-def canvas(width: float, height: float = SQRT3_2, size: float = 8.0, margin: float = 0.03):
-    """A black figure with equal-aspect axes framing [0, width] x [0, height]."""
-    fig, ax = plt.subplots(figsize=(size, size * height / width), facecolor=BACKGROUND)
-    ax.set_facecolor(BACKGROUND)
-    ax.set_xlim(-margin, width + margin)
-    ax.set_ylim(-margin, height + margin)
-    ax.set_aspect("equal")
-    ax.axis("off")
-    fig.subplots_adjust(0, 0, 1, 1)
-    return fig, ax
+    padding = np.array([c is None for c in colours])
+    filled = [c for c in colours if c is not None]
+    collections = [
+        PolyCollection(polys[~padding], facecolors=filled, edgecolors=filled, linewidths=0.05)
+    ]
+    if padding.any():
+        collections.append(
+            PolyCollection(
+                polys[padding],
+                facecolors=theme.padding_fill or "none",
+                edgecolors=theme.padding_edge or theme.padding_fill,
+                linewidths=0.15 if theme.padding_edge else 0.05,
+            )
+        )
+    for collection in collections:
+        ax.add_collection(collection)
+    return collections
