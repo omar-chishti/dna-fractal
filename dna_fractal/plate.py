@@ -1,10 +1,16 @@
-"""Plate furniture in the manner of engraved charts: neatline, loupes, captions."""
+"""Plate furniture in the manner of engraved charts: neatline, loupes, keys, captions.
 
+Text and key layout are measured in points from a data-space anchor, so spacing and swatch
+sizes are identical on every plate whatever its data scale.
+"""
+
+import math
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Circle, Rectangle
+from matplotlib.transforms import ScaledTranslation
 
 from .render import Theme, draw
 from .typography import SMALL_CAPS_FAMILY, register_fonts
@@ -12,10 +18,18 @@ from .typography import SMALL_CAPS_FAMILY, register_fonts
 SERIF = "ETbb"
 
 # Type scale, in points.
-TITLE = 20.0
-HEADING = 12.0
-BODY = 9.5
-NOTE = 8.0
+TITLE = 22.0
+HEADING = 13.0
+BODY = 10.5
+NOTE = 8.5
+
+SWATCH = 9.0
+TRIANGLE = [(0.0, 0.433), (-0.5, -0.433), (0.5, -0.433), (0.0, 0.433)]
+# Drop from a swatch's centre to the label baseline that centres small capitals on it.
+SMALL_CAPS_DROP = 0.23 * BODY
+
+KeyItem = tuple[str | None, str]
+KeyGroup = tuple[str, Sequence[KeyItem]]
 
 
 def plate(width: float, height: float, extent, theme: Theme, size: float = 14.0):
@@ -124,16 +138,121 @@ def caption(
     small_caps: bool = True,
     italic: bool = False,
     dim: bool = False,
+    dx: float = 0.0,
+    dy: float = 0.0,
     **kwargs,
 ):
-    """Text in ETbb: small capitals by default, or roman or italic; `dim` for secondary text."""
-    return ax.text(
-        x,
-        y,
+    """Text in ETbb at (x, y), shifted (dx, dy) points.
+
+    Small capitals by default, or roman or italic; `dim` for secondary text.
+    """
+    return ax.annotate(
         text,
+        (x, y),
+        xytext=(dx, dy),
+        textcoords="offset points",
         family=SMALL_CAPS_FAMILY if small_caps and not italic else SERIF,
         style="italic" if italic else "normal",
         size=size,
         color=theme.ink_dim if dim else theme.ink,
         **kwargs,
     )
+
+
+def _points(ax: plt.Axes, dx: float, dy: float):
+    return ax.transData + ScaledTranslation(dx / 72, dy / 72, ax.figure.dpi_scale_trans)
+
+
+def _width(ax: plt.Axes, artist) -> float:
+    renderer = ax.figure.canvas.get_renderer()
+    return artist.get_window_extent(renderer).width * 72 / ax.figure.dpi
+
+
+def swatch(ax, x, y, colour: str | None, theme: Theme, dx=0.0, dy=0.0, size=SWATCH) -> None:
+    """An equilateral triangle centred (dx, dy) points from (x, y); None draws an outline."""
+    style = (
+        {"markerfacecolor": "none", "markeredgecolor": theme.ink_dim, "markeredgewidth": 0.6}
+        if colour is None
+        else {"markerfacecolor": colour, "markeredgewidth": 0}
+    )
+    ax.plot([x], [y], marker=TRIANGLE, markersize=size, transform=_points(ax, dx, dy), **style)
+
+
+def key(
+    ax: plt.Axes,
+    x: float,
+    y: float,
+    groups: Sequence[KeyGroup],
+    theme: Theme,
+    rows: int = 2,
+) -> float:
+    """A grouped key whose top-left corner is (x, y). Returns its width in points.
+
+    Each group has a dim small-caps heading over a hairline, then its items filled row by row
+    in up to `rows` rows. Items are (colour, label); a None colour draws an outline swatch.
+    """
+    row_height, label_gap, column_gap, group_gap = 17.0, 6.0, 14.0, 30.0
+    top_of_items = -(NOTE + 13.0)
+    left = 0.0
+    for heading, items in groups:
+        head = caption(ax, x, y, heading, theme, size=NOTE, dim=True, dx=left, va="top")
+        columns = math.ceil(len(items) / rows)
+        column_left = left
+        for c in range(columns):
+            widest = 0.0
+            for i in range(c, len(items), columns):
+                colour, label = items[i]
+                cy = top_of_items - (i // columns) * row_height - SWATCH / 2
+                swatch(ax, x, y, colour, theme, dx=column_left + SWATCH / 2, dy=cy)
+                label_x = column_left + SWATCH + label_gap
+                text = caption(
+                    ax, x, y, label, theme, dx=label_x, dy=cy - SMALL_CAPS_DROP, va="baseline"
+                )
+                widest = max(widest, _width(ax, text))
+            column_left += SWATCH + label_gap + widest + column_gap
+        group_width = max(column_left - column_gap - left, _width(ax, head))
+        hairline(ax, x, y, group_width, theme, dx=left, dy=-(NOTE + 5.0))
+        left += group_width + group_gap
+    return left - group_gap
+
+
+def _points_per_unit(ax: plt.Axes) -> float:
+    (x0, _), (x1, _) = ax.transData.transform([(0, 0), (1, 0)])
+    return (x1 - x0) * 72 / ax.figure.dpi
+
+
+def hairline(ax, x, y, length, theme: Theme, dx=0.0, dy=0.0, dim=True) -> None:
+    """A horizontal rule `length` points long, starting (dx, dy) points from (x, y)."""
+    span = length / _points_per_unit(ax)
+    colour = theme.ink_dim if dim else theme.ink
+    ax.plot([x, x + span], [y, y], color=colour, lw=0.4, transform=_points(ax, dx, dy))
+
+
+def title_block(ax, x, y, title: str, subtitle: str, notes: Sequence[str], theme: Theme) -> None:
+    """Right-aligned title, subtitle and dim note lines hanging from the top-right corner (x, y)."""
+    right = {"ha": "right", "va": "top"}
+    caption(ax, x, y, title, theme, size=TITLE, italic=True, **right)
+    caption(ax, x, y, subtitle, theme, dy=-(TITLE + 8), **right)
+    for i, note in enumerate(notes):
+        dy = -(TITLE + BODY + 16 + i * (NOTE + 5))
+        caption(ax, x, y, note, theme, size=NOTE, dim=True, dy=dy, **right)
+
+
+def footer(
+    ax: plt.Axes,
+    x0: float,
+    x1: float,
+    y: float,
+    groups: Sequence[KeyGroup],
+    title: tuple[str, str, Sequence[str]],
+    theme: Theme,
+    rows: int = 2,
+) -> None:
+    """A rule from x0 to x1 at height y, the key below it on the left, the title on the right.
+
+    The key's headings and the title share a top edge.
+    """
+    ax.plot([x0, x1], [y, y], color=theme.ink_dim, lw=0.4)
+    top = y - 16 / _points_per_unit(ax)
+    key(ax, x0, top, groups, theme, rows=rows)
+    title_block(ax, x1, top, *title, theme)
