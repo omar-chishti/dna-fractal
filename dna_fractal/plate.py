@@ -1,4 +1,4 @@
-"""Plate furniture in the manner of engraved charts: neatline, loupes, keys, captions.
+"""Plate furniture in the manner of engraved plates: Oxford rule, loupes, keys, captions.
 
 Text and key layout are measured in points from a data-space anchor, so spacing and swatch
 sizes are identical on every plate whatever its data scale.
@@ -18,29 +18,28 @@ from .typography import SMALL_CAPS_FAMILY, register_fonts
 SERIF = "ETbb"
 
 # Type scale, in points.
-TITLE = 22.0
-HEADING = 13.0
-BODY = 10.5
-NOTE = 8.5
+TITLE = 32.0
+HEADING = 17.0
+BODY = 13.5
+NOTE = 11.0
 
-SWATCH = 9.0
+SWATCH = 11.0
 TRIANGLE = [(0.0, 0.433), (-0.5, -0.433), (0.5, -0.433), (0.0, 0.433)]
 # Drop from a swatch's centre to the label baseline that centres small capitals on it.
 SMALL_CAPS_DROP = 0.23 * BODY
 
 KeyItem = tuple[str | None, str]
-KeyGroup = tuple[str, Sequence[KeyItem]]
 
 
 def plate(width: float, height: float, extent, theme: Theme, size: float = 14.0):
-    """A figure with a chart border and one equal-aspect axes spanning `extent`.
+    """A figure framed by an Oxford rule, with one equal-aspect axes spanning `extent`.
 
     `extent` is (x0, x1, y0, y1) in data units; `width` and `height` set the aspect of the page.
     """
     register_fonts()
     fig = plt.figure(figsize=(size, size * height / width), facecolor=theme.ground)
-    _neatline(fig, theme)
-    margin_x, margin_y = 0.04, 0.04 * width / height
+    _oxford_rule(fig, theme)
+    margin_x, margin_y = 0.05, 0.05 * width / height
     ax = fig.add_axes([margin_x, margin_y, 1 - 2 * margin_x, 1 - 2 * margin_y])
     ax.set_facecolor(theme.ground)
     x0, x1, y0, y1 = extent
@@ -51,29 +50,15 @@ def plate(width: float, height: float, extent, theme: Theme, size: float = 14.0)
     return fig, ax
 
 
-def _neatline(fig: plt.Figure, theme: Theme, segments: int = 64) -> None:
-    """Double rule with an alternating scale band between, as on a nautical chart's border."""
+def _oxford_rule(fig: plt.Figure, theme: Theme, inset: float = 18.0, gap: float = 4.0) -> None:
+    """A heavy outer rule and a fine inner one, `inset` and `inset + gap` points from the edge."""
     frame = fig.add_axes([0, 0, 1, 1], zorder=-1)
-    frame.set_xlim(0, 1)
-    frame.set_ylim(0, 1)
     frame.axis("off")
-    width, height = fig.get_size_inches()
-    aspect = width / height
-    mx, my = 0.014, 0.014 * aspect
-    bx, by = 0.0035, 0.0035 * aspect
-    for x, y, lw in [(mx, my, 0.9), (mx + bx, my + by, 0.4)]:
-        frame.add_patch(
-            Rectangle((x, y), 1 - 2 * x, 1 - 2 * y, fill=False, edgecolor=theme.ink, lw=lw)
-        )
-    across, down = segments, round(segments / aspect)
-    step_x, step_y = (1 - 2 * mx) / across, (1 - 2 * my) / down
-    style = {"color": theme.ink_dim, "lw": 0}
-    for i in range(0, across, 2):
-        for y in (my, 1 - my - by):
-            frame.add_patch(Rectangle((mx + i * step_x, y), step_x, by, **style))
-    for i in range(0, down, 2):
-        for x in (mx, 1 - mx - bx):
-            frame.add_patch(Rectangle((x, my + i * step_y), bx, step_y, **style))
+    width, height = fig.get_size_inches() * 72
+    style = {"fill": False, "edgecolor": theme.ink, "joinstyle": "miter"}
+    for offset, lw in [(inset, 2.0), (inset + gap + 1.0, 0.6)]:
+        x, y = offset / width, offset / height
+        frame.add_patch(Rectangle((x, y), 1 - 2 * x, 1 - 2 * y, lw=lw, **style))
 
 
 def _outer_tangents(c1, r1, c2, r2):
@@ -146,6 +131,7 @@ def caption(
 
     Small capitals by default, or roman or italic; `dim` for secondary text.
     """
+    kwargs.setdefault("color", theme.ink_dim if dim else theme.ink)
     return ax.annotate(
         text,
         (x, y),
@@ -154,7 +140,6 @@ def caption(
         family=SMALL_CAPS_FAMILY if small_caps and not italic else SERIF,
         style="italic" if italic else "normal",
         size=size,
-        color=theme.ink_dim if dim else theme.ink,
         **kwargs,
     )
 
@@ -163,15 +148,21 @@ def _points(ax: plt.Axes, dx: float, dy: float):
     return ax.transData + ScaledTranslation(dx / 72, dy / 72, ax.figure.dpi_scale_trans)
 
 
-def _width(ax: plt.Axes, artist) -> float:
+def width(ax: plt.Axes, artist) -> float:
+    """An artist's rendered width in points."""
     renderer = ax.figure.canvas.get_renderer()
     return artist.get_window_extent(renderer).width * 72 / ax.figure.dpi
+
+
+def _points_per_unit(ax: plt.Axes) -> float:
+    (x0, _), (x1, _) = ax.transData.transform([(0, 0), (1, 0)])
+    return (x1 - x0) * 72 / ax.figure.dpi
 
 
 def swatch(ax, x, y, colour: str | None, theme: Theme, dx=0.0, dy=0.0, size=SWATCH) -> None:
     """An equilateral triangle centred (dx, dy) points from (x, y); None draws an outline."""
     style = (
-        {"markerfacecolor": "none", "markeredgecolor": theme.ink_dim, "markeredgewidth": 0.6}
+        {"markerfacecolor": "none", "markeredgecolor": theme.ink_dim, "markeredgewidth": 0.7}
         if colour is None
         else {"markerfacecolor": colour, "markeredgewidth": 0}
     )
@@ -182,60 +173,46 @@ def key(
     ax: plt.Axes,
     x: float,
     y: float,
-    groups: Sequence[KeyGroup],
+    groups: Sequence[Sequence[KeyItem]],
     theme: Theme,
     rows: int = 2,
+    lead: str | None = None,
 ) -> float:
-    """A grouped key whose top-left corner is (x, y). Returns its width in points.
+    """A key whose top-left corner is (x, y), grouped by spacing alone. Returns its width.
 
-    Each group has a dim small-caps heading over a hairline, then its items filled row by row
-    in up to `rows` rows. Items are (colour, label); a None colour draws an outline swatch.
+    Items are (colour, label), filled row by row in up to `rows` rows; a None colour draws an
+    outline swatch. `lead` is a dim label set before the first row.
     """
-    row_height, label_gap, column_gap, group_gap = 17.0, 6.0, 14.0, 30.0
-    top_of_items = -(NOTE + 13.0)
+    row_height, label_gap, column_gap, group_gap = 24.0, 8.0, 20.0, 44.0
     left = 0.0
-    for heading, items in groups:
-        head = caption(ax, x, y, heading, theme, size=NOTE, dim=True, dx=left, va="top")
+    if lead:
+        text = caption(ax, x, y, lead, theme, size=NOTE, dim=True,
+                       dy=-SWATCH / 2 - SMALL_CAPS_DROP, va="baseline")  # fmt: skip
+        left = width(ax, text) + label_gap * 2
+    for items in groups:
         columns = math.ceil(len(items) / rows)
-        column_left = left
         for c in range(columns):
             widest = 0.0
             for i in range(c, len(items), columns):
                 colour, label = items[i]
-                cy = top_of_items - (i // columns) * row_height - SWATCH / 2
-                swatch(ax, x, y, colour, theme, dx=column_left + SWATCH / 2, dy=cy)
-                label_x = column_left + SWATCH + label_gap
+                cy = -(i // columns) * row_height - SWATCH / 2
+                swatch(ax, x, y, colour, theme, dx=left + SWATCH / 2, dy=cy)
                 text = caption(
-                    ax, x, y, label, theme, dx=label_x, dy=cy - SMALL_CAPS_DROP, va="baseline"
-                )
-                widest = max(widest, _width(ax, text))
-            column_left += SWATCH + label_gap + widest + column_gap
-        group_width = max(column_left - column_gap - left, _width(ax, head))
-        hairline(ax, x, y, group_width, theme, dx=left, dy=-(NOTE + 5.0))
-        left += group_width + group_gap
+                    ax, x, y, label, theme,
+                    dx=left + SWATCH + label_gap, dy=cy - SMALL_CAPS_DROP, va="baseline",
+                )  # fmt: skip
+                widest = max(widest, width(ax, text))
+            left += SWATCH + label_gap + widest + column_gap
+        left += group_gap - column_gap
     return left - group_gap
 
 
-def _points_per_unit(ax: plt.Axes) -> float:
-    (x0, _), (x1, _) = ax.transData.transform([(0, 0), (1, 0)])
-    return (x1 - x0) * 72 / ax.figure.dpi
-
-
-def hairline(ax, x, y, length, theme: Theme, dx=0.0, dy=0.0, dim=True) -> None:
-    """A horizontal rule `length` points long, starting (dx, dy) points from (x, y)."""
-    span = length / _points_per_unit(ax)
-    colour = theme.ink_dim if dim else theme.ink
-    ax.plot([x, x + span], [y, y], color=colour, lw=0.4, transform=_points(ax, dx, dy))
-
-
-def title_block(ax, x, y, title: str, subtitle: str, notes: Sequence[str], theme: Theme) -> None:
-    """Right-aligned title, subtitle and dim note lines hanging from the top-right corner (x, y)."""
+def title_block(ax, x, y, kicker: str, title: str, subtitle: str, theme: Theme) -> None:
+    """Right-aligned kicker, italic title and subtitle hanging from the top-right corner (x, y)."""
     right = {"ha": "right", "va": "top"}
-    caption(ax, x, y, title, theme, size=TITLE, italic=True, **right)
-    caption(ax, x, y, subtitle, theme, dy=-(TITLE + 8), **right)
-    for i, note in enumerate(notes):
-        dy = -(TITLE + BODY + 16 + i * (NOTE + 5))
-        caption(ax, x, y, note, theme, size=NOTE, dim=True, dy=dy, **right)
+    caption(ax, x, y, kicker, theme, size=NOTE, dim=True, **right)
+    caption(ax, x, y, title, theme, size=TITLE, italic=True, dy=-(NOTE + 6), **right)
+    caption(ax, x, y, subtitle, theme, dy=-(NOTE + TITLE + 16), **right)
 
 
 def footer(
@@ -243,16 +220,15 @@ def footer(
     x0: float,
     x1: float,
     y: float,
-    groups: Sequence[KeyGroup],
-    title: tuple[str, str, Sequence[str]],
+    groups: Sequence[Sequence[KeyItem]],
+    title: tuple[str, str, str],
     theme: Theme,
     rows: int = 2,
+    lead: str | None = None,
 ) -> None:
-    """A rule from x0 to x1 at height y, the key below it on the left, the title on the right.
-
-    The key's headings and the title share a top edge.
-    """
+    """A rule from x0 to x1 at height y; below it the key on the left, the title on the right."""
     ax.plot([x0, x1], [y, y], color=theme.ink_dim, lw=0.4)
-    top = y - 16 / _points_per_unit(ax)
-    key(ax, x0, top, groups, theme, rows=rows)
+    top = y - 22 / _points_per_unit(ax)
     title_block(ax, x1, top, *title, theme)
+    key_top = top - (NOTE + 12) / _points_per_unit(ax)
+    key(ax, x0, key_top, groups, theme, rows=rows, lead=lead)
