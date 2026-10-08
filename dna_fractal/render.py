@@ -23,21 +23,22 @@ POSTER_PALETTE = {
 class Theme:
     ground: str
     ink: str
+    ink_dim: str
     padding_fill: str | None
     padding_edge: str | None
     missing: str
 
 
-POSTER = Theme(ground="black", ink="white", padding_fill="white", padding_edge=None, missing="#222")
-BLUEPRINT = Theme(
-    ground="#0f2645",
-    ink="#ece6d6",
+PLATE = Theme(
+    ground="black",
+    ink="#ebe6da",
+    ink_dim="#8f8a80",
     padding_fill=None,
-    padding_edge="#ece6d62e",
-    missing="#0f2645",
+    padding_edge="#ebe6da30",
+    missing="#262626",
 )
 
-IBS_PALETTE = {0: "#ff6a3d", 1: "#8fb0d8", 2: "#3a6597"}
+IBS_PALETTE = {0: "#ff5a36", 1: "#a3adb8", 2: "#46505b"}
 
 
 def colours_for(values: Sequence, palette: dict, n_cells: int, missing: str) -> list[str | None]:

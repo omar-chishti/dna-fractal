@@ -1,12 +1,11 @@
 from .genome import align, arms, chromosome, ibs, mendelian_errors, read_23andme
 from .geometry import level_for, sierpinski_cells, subtriangle
-from .plate import caption, graticule, loupe, plate
-from .render import BLUEPRINT, IBS_PALETTE, POSTER, POSTER_PALETTE, colours_for, draw, flip
+from .plate import caption, loupe, plate
+from .render import IBS_PALETTE, PLATE, POSTER_PALETTE, colours_for, draw, flip
 
 __all__ = [
-    "BLUEPRINT",
     "IBS_PALETTE",
-    "POSTER",
+    "PLATE",
     "POSTER_PALETTE",
     "align",
     "arms",
@@ -15,7 +14,6 @@ __all__ = [
     "colours_for",
     "draw",
     "flip",
-    "graticule",
     "ibs",
     "level_for",
     "loupe",
