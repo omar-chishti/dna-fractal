@@ -1,0 +1,25 @@
+[project]
+name = "dna-fractal"
+version = "1.0.0"
+description = "23andMe genotypes drawn as Sierpiński triangles, one SNP per cell."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Omar Chishti" }]
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.26", "pandas>=2.1", "matplotlib>=3.8"]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "jupyterlab>=4", "nbmake>=1.5"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
